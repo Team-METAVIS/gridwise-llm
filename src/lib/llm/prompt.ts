@@ -134,6 +134,28 @@ export const FEW_SHOT_EXAMPLES: FewShotExample[] = [
       },
     ]),
   },
+  {
+    notes: [
+      "Inverter inspection requires that the battery must not discharge between 3 PM and 5 PM.",
+      "The campus electrical engineering department is hosting a technical symposium tomorrow.",
+    ],
+    response: JSON.stringify([
+      {
+        note_index: 0,
+        applies: true,
+        directive_type: "no_discharge_window",
+        structured_adjustment: { hours: [15, 16] },
+        explanation: "Inverter inspection blocks battery discharge from 3 PM to 5 PM.",
+      },
+      {
+        note_index: 1,
+        applies: false,
+        directive_type: "no_op",
+        structured_adjustment: null,
+        explanation: "Tomorrow's symposium has no effect on today's energy schedule.",
+      },
+    ]),
+  },
 ];
 
 export function buildUserPrompt(

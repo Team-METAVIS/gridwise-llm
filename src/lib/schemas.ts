@@ -79,20 +79,38 @@ const hourlyPlanEntrySchema = z.object({
   battery_energy_after_kwh: z.number().finite().nonnegative(),
 });
 
-const directiveInterpretationEntrySchema = z.object({
-  note_index: z.number().int().nonnegative(),
-  applies: z.boolean(),
-  directive_type: z.enum(DIRECTIVE_TYPES),
-  structured_adjustment: z
-    .object({
-      hours: z.array(z.number().int().min(0).max(23)).optional(),
-      factor: z.number().finite().min(0).max(1).optional(),
-      minimum_energy_kwh: z.number().finite().nonnegative().optional(),
-      max_grid_kwh: z.number().finite().nonnegative().optional(),
-    })
-    .nullable(),
-  explanation: z.string(),
-});
+const directiveInterpretationEntrySchema = z
+  .object({
+    note_index: z.number().int().nonnegative(),
+    applies: z.boolean(),
+    directive_type: z.enum(DIRECTIVE_TYPES),
+    structured_adjustment: z
+      .object({
+        hours: z.array(z.number().int().min(0).max(23)).optional(),
+        factor: z.number().finite().min(0).max(1).optional(),
+        minimum_energy_kwh: z.number().finite().nonnegative().optional(),
+        max_grid_kwh: z.number().finite().nonnegative().optional(),
+      })
+      .nullable(),
+    explanation: z.string(),
+  })
+  .superRefine((entry, ctx) => {
+    if (entry.directive_type === "no_op") {
+      if (entry.applies !== false) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "no_op must have applies = false" });
+      }
+      if (entry.structured_adjustment !== null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "no_op must have structured_adjustment = null" });
+      }
+    } else {
+      if (entry.applies !== true) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${entry.directive_type} must have applies = true` });
+      }
+      if (entry.structured_adjustment === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${entry.directive_type} must have non-null structured_adjustment` });
+      }
+    }
+  });
 
 export const optimizeEnergyResponseSchema = z.object({
   scenario_id: z.string().min(1),
