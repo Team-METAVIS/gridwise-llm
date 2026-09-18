@@ -92,7 +92,7 @@ describe("applyGuardrails", () => {
       battery
     );
     expect(result).toHaveLength(1);
-    expect(result[0].directive_type).toBe("no_charge_window");
+    expect(result[0]?.directive_type).toBe("no_charge_window");
   });
 
   it("always forces applies=false + null adjustment for no_op regardless of what the model sent", () => {
