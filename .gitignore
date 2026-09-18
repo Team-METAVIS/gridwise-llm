@@ -11,3 +11,5 @@ npm-debug.log*
 .vercel
 .DS_Store
 coverage/
+next-env.d.ts
+*.tsbuildinfo
