@@ -96,13 +96,15 @@ npm run typecheck
 | Variable | Required | Meaning |
 |---|---|---|
 | `PORT` | no | Local dev/standalone server port (default 3000). |
-| `LLM_PROVIDER_PRIORITY` | no | Comma-separated `@free-ai-gateway/core` provider ids, left = tried first (e.g. `google_ai_studio,groq,cohere`). Providers left out are still tried, just after the listed ones. |
-| `GOOGLE_API_KEY`, `GROQ_API_KEY`, `COHERE_API_KEY`, `OPENROUTER_API_KEY`, ... | at least one | Free-tier provider keys. Set only the ones you actually use — `@free-ai-gateway/core`'s `Registry` auto-discovers 20 providers and simply skips/fails over any without a key. |
+| `LLM_PROVIDER_PRIORITY` | no | Comma-separated provider ids, left = tried first (e.g. `openai,google_ai_studio,groq,cohere`). Providers left out are still tried, just after the listed ones. |
+| `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `GROQ_API_KEY`, `COHERE_API_KEY`, ... | at least one | Provider API keys. Supports OpenAI (and any OpenAI-compatible API), Google Gemini, Groq, Cohere, etc. |
+| `OPENAI_BASE_URL` | no | Optional custom base URL for OpenAI-compatible providers (e.g. OpenRouter, DeepSeek, local vLLM/Ollama). Default: `https://api.openai.com/v1`. |
+| `OPENAI_MODEL`, `GROQ_MODEL`, `GEMINI_MODEL` | no | Override/pin the model id used by the direct-fetch backend. If unset, the backend automatically rotates across high-capability free/available models per provider with in-call fallback. |
 | `LLM_TIMEOUT_MS` | no | Per-provider request timeout (default 12000ms), well inside the 30s per-request budget. |
-| `LLM_BACKEND` | no | Set to `direct` to force the zero-dependency fallback backend (Groq/Gemini via plain `fetch`) and skip `@free-ai-gateway/core` entirely. Default tries the gateway first. |
-| `GROQ_MODEL`, `GEMINI_MODEL` | no | Override the model id used by the direct-fetch fallback backend. |
+| `LLM_BACKEND` | no | Options: `free-ai-gateway` (default, multi-provider routing with failover), `direct` (plain-fetch OpenAI/Groq/Gemini), or `openai` (directly target OpenAI / OpenAI-compatible endpoint). |
 
 No secret values are committed anywhere in this repo — only `.env.example` with empty values.
+
 
 ## How operator-note interpretation works
 

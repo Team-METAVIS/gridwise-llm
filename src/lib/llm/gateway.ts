@@ -25,7 +25,13 @@ export interface InterpretFailure {
 export type InterpretResult = InterpretSuccess | InterpretFailure;
 
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 12_000);
-const FORCE_DIRECT_BACKEND = process.env.LLM_BACKEND === "direct";
+const configuredBackend = (process.env.LLM_BACKEND || "").trim().toLowerCase();
+const FORCE_DIRECT_BACKEND =
+  configuredBackend === "direct" ||
+  configuredBackend === "openai" ||
+  configuredBackend === "groq" ||
+  configuredBackend === "gemini" ||
+  configuredBackend === "google";
 
 // --- @free-ai-gateway/core wiring (module-level singleton: reused across warm
 // serverless invocations, rebuilt on cold start). Construction can throw if
