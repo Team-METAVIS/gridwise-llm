@@ -5,27 +5,8 @@ export interface DirectBackendResult {
   servedBy: string;
 }
 
-export const GROQ_MODELS = [
-  "openai/gpt-oss-120b",
-  "openai/gpt-oss-20b",
-  "qwen/qwen3.8-27b",
-  "groq/compound",
-  "groq/compound-mini",
-];
-
-export const GEMINI_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-flash-lite-latest",
-  "gemini-flash-latest",
-];
-
-export const OPENAI_MODELS = [
-  "gpt-4o-mini",
-  "gpt-4o",
-  "gpt-3.5-turbo",
-];
+import { GEMINI_MODELS, GROQ_MODELS, OPENAI_MODELS } from "@/lib/constants";
+export { GEMINI_MODELS, GROQ_MODELS, OPENAI_MODELS };
 
 let groqCallCount = 0;
 let geminiCallCount = 0;

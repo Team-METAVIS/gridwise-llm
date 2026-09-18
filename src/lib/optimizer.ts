@@ -10,10 +10,10 @@
 import solver from "javascript-lp-solver";
 import type { LPModel } from "javascript-lp-solver";
 
+import { EPS, HOURS } from "@/lib/constants";
 import type { Battery, DirectiveInterpretation, HourEntry, HourlyPlanEntry } from "@/types/gridwise";
 
-export const HOURS = 24;
-export const EPS = 1e-6;
+export { EPS, HOURS };
 
 export interface HourConstraints {
   effectiveSolar: number[];

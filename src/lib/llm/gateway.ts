@@ -6,6 +6,7 @@ import {
   Registry,
 } from "@free-ai-gateway/core";
 
+import { DEFAULT_LLM_TIMEOUT_MS } from "@/lib/constants";
 import { rawDirectiveArraySchema, type RawDirective } from "@/lib/schemas";
 import { interpretViaDirectFetch } from "./directBackend";
 import { buildChatMessages, extractJsonArray } from "./messages";
@@ -24,7 +25,7 @@ export interface InterpretFailure {
 
 export type InterpretResult = InterpretSuccess | InterpretFailure;
 
-const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 12_000);
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? DEFAULT_LLM_TIMEOUT_MS);
 const configuredBackend = (process.env.LLM_BACKEND || "").trim().toLowerCase();
 const FORCE_DIRECT_BACKEND =
   configuredBackend === "direct" ||

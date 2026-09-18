@@ -10,7 +10,8 @@
 // directly from hourly_plan, since hourly_plan is the judge's source of
 // truth for those totals, not whatever the optimizer tracked internally.
 
-import { buildHourConstraints, HOURS } from "@/lib/optimizer";
+import { HOURS, TOLERANCE } from "@/lib/constants";
+import { buildHourConstraints } from "@/lib/optimizer";
 import type { Battery, DirectiveInterpretation, HourEntry, HourlyPlanEntry } from "@/types/gridwise";
 
 export interface ReplayTotals {
@@ -19,7 +20,7 @@ export interface ReplayTotals {
   peakGridKwh: number;
 }
 
-export const TOLERANCE = 0.01; // Canonical tolerance per Problem Statement §11.5
+export { TOLERANCE };
 
 class ReplayValidationError extends Error {}
 

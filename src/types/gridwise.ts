@@ -1,16 +1,8 @@
 // Shared domain types for the GridWise LLM preliminary challenge.
 // Mirrors BUP_CSE_FEST_2026_Preliminary_Problem_Statement_GridWise_LLM.pdf sections 04, 07, 10.
 
-export const DIRECTIVE_TYPES = [
-  "solar_reduction",
-  "minimum_battery_reserve",
-  "no_charge_window",
-  "no_discharge_window",
-  "max_grid_window",
-  "no_op",
-] as const;
-
-export type DirectiveType = (typeof DIRECTIVE_TYPES)[number];
+import { DIRECTIVE_TYPES, type DirectiveType, NUMERIC_TOLERANCE } from "@/lib/constants";
+export { DIRECTIVE_TYPES, type DirectiveType, NUMERIC_TOLERANCE };
 
 export interface SolarReductionAdjustment {
   hours: number[];
@@ -96,5 +88,3 @@ export interface OptimizeEnergyResponse {
 
 /** A directive that has passed the guardrail validator and is safe to apply to the optimizer. */
 export type TrustedDirective = DirectiveInterpretation;
-
-export const NUMERIC_TOLERANCE = 0.01;
