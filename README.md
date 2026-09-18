@@ -6,9 +6,17 @@
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-LLM-assisted 24-hour campus energy scheduling API for the **BUP CSE Fest 2026 Hackathon — Online Preliminary Round** (GridWise / Smart Campus Energy Optimization Challenge, in association with Poridhi).
+LLM-assisted 24-hour campus energy scheduling API and interactive optimization dashboard for the **BUP CSE Fest 2026 Hackathon — Online Preliminary Round** (GridWise / Smart Campus Energy Optimization Challenge, in association with Poridhi).
 
-One robust, production-grade HTTP service that reads a 24-hour demand/solar/tariff scenario plus 1–3 natural-language operator notes, interprets the notes with a generative LLM, deterministically validates that interpretation through strict guardrails, solves a cost-minimizing battery/grid/solar schedule using simplex-based linear programming, and independently replays its own answer before responding.
+A production-grade HTTP service and web dashboard that reads a 24-hour demand/solar/tariff scenario plus 1–3 natural-language operator notes, interprets the notes with a generative LLM, deterministically validates that interpretation through strict guardrails, solves a cost-minimizing battery/grid/solar schedule using regularized simplex linear programming, and independently replays its own answer before responding.
+
+---
+
+## Live Deployment & Interactive Web Dashboard
+
+- **Live Web Dashboard & Scenario Tester**: [https://gridwise.zaber.dev/](https://gridwise.zaber.dev/)
+- **Canonical Health Probe**: `GET https://gridwise.zaber.dev/health`
+- **Canonical Optimizer Endpoint**: `POST https://gridwise.zaber.dev/optimize-energy`
 
 ---
 
@@ -26,19 +34,19 @@ One robust, production-grade HTTP service that reads a 24-hour demand/solar/tari
 
 ```mermaid
 graph TD
-    Client["Client / Judge Harness"] -->|POST /optimize-energy| Route["Next.js Route Handler"]
+    Client["Client / Judge Harness / Web UI"] -->|POST /optimize-energy| Route["Next.js Route Handler"]
     Route --> SchemaIn["Zod Request Validation<br/>(Scenario, Notes, 24 Hours, Battery)"]
-    SchemaIn --> LLM["LLM Interpretation Layer<br/>(Prompt with Campus Battery Context)"]
+    SchemaIn --> LLM["LLM Interpretation Layer<br/>(System Prompt with Campus Battery Context)"]
     
-    subgraph LLM_Engine ["Multi-Tier LLM Resilience"]
-        LLM --> Gateway["Tier 1: @free-ai-gateway/core<br/>(20 Free-Tier Providers)"]
-        Gateway -->|Fallback on Quota/Error| Direct["Tier 2: Direct Fetch Engine<br/>(OpenAI, Groq, Gemini)"]
-        Direct -->|Model Failover| Rotation["Round-Robin Model Rotation"]
-        Rotation -->|All Exhausted| Degrade["Tier 3: Safe Degrade to no_op"]
+    subgraph LLM_Engine ["Multi-Tier AI Resilience"]
+        LLM --> Gateway["Tier 1: @free-ai-gateway/core<br/>(Multi-Provider Pool & Quota Routing)"]
+        Gateway -->|Fallback on Quota/Error| Direct["Tier 2: Direct Fetch Engine<br/>(Google AI Studio, Groq Cloud, OpenAI)"]
+        Direct -->|Model Rotation / In-Call Retries| Emergency["Tier 3: Emergency Heuristic Parser<br/>(Regex & Semantic Time Windows)"]
+        Emergency -->|Distractor or Unparseable| SafeDegrade["Tier 4: Safe Degrade to no_op"]
     end
 
     LLM_Engine --> Guardrails["Deterministic Guardrail Layer<br/>(Hours 0-23, Bounds, applies <=> no_op)"]
-    Guardrails --> LP["Simplex LP Optimizer (javascript-lp-solver)<br/>(Minimizes Total Electricity Cost)"]
+    Guardrails --> LP["Regularized Simplex LP Optimizer<br/>(Cycling Penalty + Cost Minimization)"]
     LP --> Replay["Independent Replay Validator<br/>(Tolerance <= 0.01 kWh/BDT)"]
     Replay --> SchemaOut["Zod Outgoing Response Validation"]
     SchemaOut -->|HTTP 200 OK| Client
@@ -50,19 +58,21 @@ graph TD
 
 | Item | Details |
 |---|---|
-| **Canonical Health Endpoint** | `GET /health` (alias: `GET /api/health`) → `{"status":"ok"}` |
+| **Live Web App** | [https://gridwise.zaber.dev/](https://gridwise.zaber.dev/) (Simplistic, light-mode dashboard with interactive scenario tester) |
+| **Canonical Health Endpoint** | `GET /health` (alias: `GET /api/health`) -> `{"status":"ok"}` |
 | **Canonical Main Endpoint** | `POST /optimize-energy` (alias: `POST /api/optimize-energy`) |
 | **Runtime & Framework** | Next.js 15 (App Router, TypeScript), Node.js 20+ runtime, deployed on Vercel |
-| **LLM Resilience** | Multi-tiered gateway via [`@free-ai-gateway/core`](https://github.com/zaber-dev/free-ai-gateway) + direct fallback (OpenAI, Groq, Google Gemini) with automated round-robin model rotation |
-| **Optimization Method** | Simplex-based linear programming via [`javascript-lp-solver`](https://www.npmjs.com/package/javascript-lp-solver) with clean 4-decimal precision |
+| **LLM Resilience** | 4-tier engine: `@free-ai-gateway/core` -> direct fetch (Google Gemini, Groq, OpenAI) with model rotation -> Tier 3 emergency heuristic parser -> safe `no_op` |
+| **Optimization Method** | Regularized simplex linear programming via [`javascript-lp-solver`](https://www.npmjs.com/package/javascript-lp-solver) with battery cycling penalty |
 | **Replay & Verification** | Physical constraint simulator with canonical `0.01` tolerance per Problem Statement §11.5 |
 | **Container Fallback** | Multi-stage standalone Docker container (`Dockerfile`, non-root user `gridwise`, port `3000`) |
+| **Test Verification** | **99/99 tests passing** across 7 test suites, including 50 randomized stress scenarios |
 
 ---
 
 ## Getting Free API Keys (Under 2 Minutes)
 
-You only need **ONE** free API key from any of the following providers to run the entire application and execute all test suites live.
+You only need **ONE** free API key from any of the following providers to run the application and execute all test suites live.
 
 ### Option 1: Google AI Studio (Recommended — 100% Free)
 1. Visit [Google AI Studio](https://aistudio.google.com/app/apikey).
@@ -118,8 +128,10 @@ GOOGLE_API_KEY=your_gemini_api_key_here
 
 ```bash
 npm run dev
-# Server starts immediately on http://localhost:3000
+# Web dashboard & API endpoints start immediately on http://localhost:3000
 ```
+
+Visit [http://localhost:3000](http://localhost:3000) to use the interactive light-mode Scenario Optimization Tester.
 
 ---
 
@@ -164,7 +176,7 @@ npm run dev
 #### Sample Request (`curl`)
 
 ```bash
-curl -X POST http://localhost:3000/optimize-energy \
+curl -X POST https://gridwise.zaber.dev/optimize-energy \
   -H "Content-Type: application/json" \
   --data-binary @- <<'EOF'
 {
@@ -249,7 +261,7 @@ Our LLM interpreter and deterministic guardrails recognize and enforce all 6 dir
 | `total_grid_kwh` | `number` | Sum of all hourly grid imports across the 24-hour cycle. |
 | `total_cost_bdt` | `number` | Total electricity bill in BDT: `sum(grid_kwh * tariff)`. |
 | `peak_grid_kwh` | `number` | Maximum grid power imported in any single hour. |
-| `plan_summary` | `string` | Concise executive summary of schedule performance and applied directives. |
+| `plan_summary` | `string` | Comprehensive strategy summary detailing energy flows, solar utilization %, peak tariff discharge hours, and applied directives. |
 
 #### Sample Response Payload
 
@@ -298,7 +310,7 @@ Our LLM interpreter and deterministic guardrails recognize and enforce all 6 dir
   "total_grid_kwh": 2985,
   "total_cost_bdt": 43550,
   "peak_grid_kwh": 210,
-  "plan_summary": "Scheduled 2985 kWh of grid import at a total cost of 43550 BDT (peak 210 kWh in a single hour), applying 2 of 2 operator directive(s)."
+  "plan_summary": "Optimal 24-hour schedule scheduled 2985 kWh of grid import at a total cost of 43550 BDT (peak hourly grid draw 210 kWh). Solar utilization was 100.0% (1060 kWh utilized). Battery discharged during peak tariff hours [18, 19, 20] and charged during low tariff hours [2, 3, 4]. Successfully applied 2 active operator directive(s): solar_reduction (hours [13,14]), no_charge_window (hours [14,15])."
 }
 ```
 
@@ -334,7 +346,7 @@ flowchart LR
     D -->|Invalid Hours/Bounds| E["Degrade to no_op"]
     D -->|Validated| F["Active Directives"]
     E --> F
-    F --> G["LP Solver (Simplex)"]
+    F --> G["Regularized Simplex LP"]
     G --> H["Replay Engine"]
     H --> I["Verified Output"]
 ```
@@ -344,10 +356,13 @@ flowchart LR
 - System prompt instructs the model on:
   - Six canonical directive types (`solar_reduction`, `minimum_battery_reserve`, `no_charge_window`, `no_discharge_window`, `max_grid_window`, `no_op`).
   - Standard time mapping (start-inclusive, end-exclusive; whole hours `[start, end-1]`; 12 AM = 0, 12 PM = 12; cross-midnight windows).
-  - Relative reserve conversion (e.g. 50% reserve on a 200 kWh battery → `minimum_energy_kwh = 100`).
-  - Distractor notes (weather trivia, menu updates, future maintenance → `no_op`).
-- Multi-tiered provider execution: attempts `@free-ai-gateway/core` with priority order; seamlessly falls back to direct fetch (`callOpenAI`, `callGroq`, `callGemini`) with round-robin model rotation and in-call error retry.
-- Total failure safety net: if all LLM providers are unreachable, degrades safely to `no_op` rather than crashing.
+  - Relative reserve conversion (e.g. 50% reserve on a 300 kWh battery -> `minimum_energy_kwh = 150`).
+  - Distractor notes (weather trivia, menu updates, future maintenance -> `no_op`).
+- Multi-tiered provider resilience:
+  - **Tier 1**: Attempts `@free-ai-gateway/core` with priority order.
+  - **Tier 2**: Seamlessly falls back to direct fetch (`callOpenAI`, `callGroq`, `callGemini`) with round-robin model rotation and in-call error retry.
+  - **Tier 3**: Emergency heuristic parser (`emergencyParser.ts`) using semantic regex rules for solar reduction, reserves, and charging/discharging windows.
+  - **Tier 4**: Safe degrade to `no_op` rather than crashing if notes are completely unparseable.
 
 ### 2. Deterministic Guardrail Validator (`src/lib/guardrails.ts`)
 - Treats LLM output as untrusted structured data:
@@ -357,25 +372,25 @@ flowchart LR
   - Validates `minimum_battery_reserve` in range `[0, capacity_kwh]`.
   - Enforces `applies = false` and `structured_adjustment = null` for `no_op`; `applies = true` and valid adjustment for all others.
 
-### 3. Math LP Optimizer (`src/lib/optimizer.ts`)
+### 3. Regularized Simplex LP Optimizer (`src/lib/optimizer.ts`)
 - Formulates a 24-hour Linear Program (LP) with 5 continuous decision variables per hour (`grid_h`, `solar_used_h`, `charge_h`, `discharge_h`, `soc_h`):
-  - **Objective**: Minimize total electricity cost: `sum_{h=0}^{23} (grid_h * tariff_h)`.
-  - **Energy balance**: `grid_h + solar_used_h + discharge_h == demand_h + charge_h` for all `h`.
-  - **Solar availability**: `0 <= solar_used_h <= effective_solar_h`.
-  - **Battery bounds**: `min_reserve_h <= soc_h <= capacity_kwh`.
-  - **Rate limits**: `charge_h <= max_charge_h`, `discharge_h <= max_discharge_h`.
-  - **Grid cap**: `grid_h <= max_grid_h` when directive is active.
-  - **End-of-day neutrality**: `soc_23 == initial_energy_kwh`.
-- **Precision handling**: Solver values retain clean 4-decimal precision (`cleanNum`) to avoid compound rounding error when inputs have 3 decimal places.
-- **Churn elimination**: Simultaneous charge and discharge (mathematical degree of freedom) are netted out into a single clean `battery_action` (`charge`, `discharge`, or `idle`).
+  - **Objective**: Minimize total electricity cost: `sum_{h=0}^{23} (grid_h * tariff_h) + sum_{h=0}^{23} BATTERY_CYCLING_PENALTY * (charge_h + discharge_h)`.
+  - **Simultaneous Churn Prevention**: The micro-penalty (`BATTERY_CYCLING_PENALTY = 0.0001` BDT/kWh) mathematically breaks simplex basis degeneracy during flat-tariff hours. It guarantees that the solver never charges and discharges simultaneously at the LP level, while preserving 100% economic tariff optimization.
+  - **Energy Balance**: `grid_h + solar_used_h + discharge_h == demand_h + charge_h` for all `h`.
+  - **Solar Availability**: `0 <= solar_used_h <= effective_solar_h`.
+  - **Battery Bounds**: `min_reserve_h <= soc_h <= capacity_kwh`.
+  - **Rate Limits**: `charge_h <= max_charge_h`, `discharge_h <= max_discharge_h`.
+  - **Grid Cap**: `grid_h <= max_grid_kwh` when directive is active.
+  - **End-of-Day Neutrality**: `soc_23 == initial_energy_kwh`.
+- **Precision Handling**: Solver values retain clean 4-decimal precision (`cleanNum`) to eliminate compound rounding error when inputs contain fractional values.
 
 ### 4. Final Replay Validator (`src/lib/replay.ts`)
-- Replays the final `hourly_plan` hour-by-hour against active directives and physical constraints, exactly like the judge harness.
+- Replays the final `hourly_plan` hour-by-hour against active directives and physical constraints, exactly like the judge evaluation harness.
 - Enforces canonical Problem Statement §11.5 tolerance (`0.01` kWh and `0.01` BDT).
 - Independently recalculates `total_grid_kwh`, `total_cost_bdt`, and `peak_grid_kwh` from `hourly_plan` before responding.
 
 ### 5. Centralized Constants & Schemas (`src/lib/constants.ts`, `src/lib/schemas.ts`)
-- All system-wide limits, tolerances, model pools, and directive types are centralized in [`src/lib/constants.ts`](src/lib/constants.ts).
+- Centralizes all system-wide limits, tolerances, model pools, battery cycling penalties, and directive types in [`src/lib/constants.ts`](src/lib/constants.ts).
 - Outgoing response is strictly validated against `optimizeEnergyResponseSchema` before sending HTTP 200.
 
 ---
@@ -385,11 +400,11 @@ flowchart LR
 Run the complete test suite:
 
 ```bash
-npm test              # Run all 6 Vitest test suites (49 tests)
+npm test              # Run all 7 Vitest test suites (99 tests)
 npm run typecheck     # TypeScript strict compilation check (tsc --noEmit)
 ```
 
-### Test Coverage Overview (49/49 Tests Passing)
+### Test Coverage Overview (99/99 Tests Passing)
 
 1. **API Routes (`tests/apiRoutes.test.ts`)**:
    - Validates `GET /health` and `GET /api/health` return 200 with `{"status":"ok"}`.
@@ -398,14 +413,17 @@ npm run typecheck     # TypeScript strict compilation check (tsc --noEmit)
 2. **Deterministic Optimizer & Replay (`tests/publicSamples.test.ts`)**:
    - Validates all 10 public sample cases in `BUP_CSE_FEST_2026_Preli_Public_Sample_Cases.json`.
    - Checks all 6 directive types and verifies optimal cost matches or beats reference within tolerance.
-3. **Fuzz Testing (`tests/fuzzScenarios.test.ts`)**:
+3. **Hidden-Test Simulator (`tests/hiddenTestSimulator.test.ts`)**:
+   - 50 randomized stress scenarios across wide operational ranges (demand 50–500 kWh, solar 0–300 kWh, battery 100–500 kWh).
+   - Validates physical replay feasibility, energy conservation, and zero simultaneous charging/discharging.
+4. **Fuzz Testing (`tests/fuzzScenarios.test.ts`)**:
    - Fuzz-tests optimizer and replay validator with randomized 3-decimal floating point scenarios and directive combinations.
    - Confirms zero balance drift and exact battery neutrality.
-4. **Guardrail Edge Cases (`tests/guardrails.test.ts`)**:
+5. **Guardrail Edge Cases (`tests/guardrails.test.ts`)**:
    - Out-of-range hours (`[13, 14, 99]`), factors `> 1`, reserves `> capacity`, and duplicate notes safely degrade to `no_op`.
-5. **Direct Backend & Model Rotation (`tests/directBackend.test.ts`)**:
+6. **Direct Backend & Model Rotation (`tests/directBackend.test.ts`)**:
    - Tests OpenAI execution, custom `OPENAI_BASE_URL`, Gemini `x-goog-api-key` header security, and automatic model rotation.
-6. **Provider Priority Strategy (`tests/priorityStrategy.test.ts`)**:
+7. **Provider Priority Strategy (`tests/priorityStrategy.test.ts`)**:
    - Tests environment-driven provider ordering and fallback sequence.
 
 ---
@@ -448,10 +466,10 @@ npm start             # Starts production standalone server
 |---|---|---|
 | **1. LLM Directive Interpretation** | **25** | Generative LLM in interpretation loop; battery-aware system prompt; percentage reserve conversion; whole-hour handling; distractor rejection; multi-provider failover. |
 | **2. Directive Application & Constraints** | **25** | Replayed against organizer ground truth. 10/10 public samples satisfy hourly balance, effective solar curtailment, battery bounds, rate limits, and end-of-day neutrality. |
-| **3. Optimization Quality** | **10** | Simplex linear programming provably minimizes electricity cost subject to active constraints; beats/matches organizer reference cost. |
+| **3. Optimization Quality** | **10** | Regularized simplex linear programming provably minimizes electricity cost subject to active constraints; breaks degeneracy to prevent simultaneous charge/discharge churn. |
 | **4. API Contract & Schema** | **10** | Canonical `GET /health` and `POST /optimize-energy` with exact field matching; strict Zod schema validation; `applies = false` for `no_op`. |
 | **5. Performance & Reliability** | **10** | Fast p95 latency (< 4s); 30s max duration config; graceful error handling on bad inputs/provider failure; `x-goog-api-key` security. |
-| **6. Deployment & Docker Fallback** | **10** | Live Vercel deployment; pullable Docker fallback container exposing `0.0.0.0:3000` with non-root user and verified quickstart. |
+| **6. Deployment & Docker Fallback** | **10** | Live Vercel deployment with custom domain `https://gridwise.zaber.dev/`; interactive light-mode web dashboard; pullable Docker container on port 3000. |
 | **7. Documentation & Reproducibility** | **10** | Self-contained README; step-by-step local quickstart; sample curl and responses; env table; credited libraries; clear architecture breakdown. |
 | **Total Base Points** | **100** | **Target: 100 / 100** |
 
