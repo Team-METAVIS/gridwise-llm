@@ -12,10 +12,10 @@ import type { LPModel } from "javascript-lp-solver";
 
 import type { Battery, DirectiveInterpretation, HourEntry, HourlyPlanEntry } from "@/types/gridwise";
 
-const HOURS = 24;
-const EPS = 1e-6;
+export const HOURS = 24;
+export const EPS = 1e-6;
 
-interface HourConstraints {
+export interface HourConstraints {
   effectiveSolar: number[];
   minReserve: number[];
   maxCharge: number[];
@@ -23,7 +23,9 @@ interface HourConstraints {
   maxGrid: (number | null)[];
 }
 
-function buildHourConstraints(hours: HourEntry[], battery: Battery, directives: DirectiveInterpretation[]): HourConstraints {
+/** Shared by the optimizer and the final replay validator so both derive the
+ * exact same per-hour effective limits from the trusted directives. */
+export function buildHourConstraints(hours: HourEntry[], battery: Battery, directives: DirectiveInterpretation[]): HourConstraints {
   const byHour = new Map(hours.map((h) => [h.hour, h]));
   const effectiveSolar = Array.from({ length: HOURS }, (_, h) => byHour.get(h)!.solar_kwh);
   const minReserve = Array.from({ length: HOURS }, () => battery.minimum_energy_kwh);
