@@ -53,7 +53,21 @@ export async function POST(req: Request) {
   }
 
   const appliedCount = directiveInterpretation.filter((d) => d.applies).length;
-  const plan_summary = `Scheduled ${totals.totalGridKwh} kWh of grid import at a total cost of ${totals.totalCostBdt} BDT (peak ${totals.peakGridKwh} kWh in a single hour), applying ${appliedCount} of ${operator_notes.length} operator directive(s).`;
+  const chargedHours = hourlyPlan.filter((h) => h.battery_action === "charge").length;
+  const dischargedHours = hourlyPlan.filter((h) => h.battery_action === "discharge").length;
+  const totalSolarUsed = Math.round(hourlyPlan.reduce((sum, h) => sum + h.solar_used_kwh, 0));
+
+  const strategyDetails: string[] = [];
+  if (totalSolarUsed > 0) strategyDetails.push(`maximized ${totalSolarUsed} kWh on-site solar`);
+  if (chargedHours > 0) strategyDetails.push(`charged battery across ${chargedHours} off-peak hour(s)`);
+  if (dischargedHours > 0) strategyDetails.push(`discharged battery across ${dischargedHours} peak hour(s) to offset grid cost`);
+  if (appliedCount > 0) {
+    const activeTypes = Array.from(new Set(directiveInterpretation.filter((d) => d.applies).map((d) => d.directive_type.replace(/_/g, " ")))).join(", ");
+    strategyDetails.push(`enforced constraints (${activeTypes})`);
+  }
+
+  const strategySuffix = strategyDetails.length > 0 ? ` Strategy: ${strategyDetails.join("; ")}.` : "";
+  const plan_summary = `Scheduled ${totals.totalGridKwh} kWh of grid import at a total cost of ${totals.totalCostBdt} BDT (peak ${totals.peakGridKwh} kWh in a single hour), applying ${appliedCount} of ${operator_notes.length} operator directive(s).${strategySuffix}`;
 
   const response: OptimizeEnergyResponse = {
     scenario_id,

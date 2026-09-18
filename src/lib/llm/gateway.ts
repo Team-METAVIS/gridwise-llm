@@ -9,6 +9,7 @@ import {
 import { DEFAULT_LLM_TIMEOUT_MS } from "@/lib/constants";
 import { rawDirectiveArraySchema, type RawDirective } from "@/lib/schemas";
 import { interpretViaDirectFetch } from "./directBackend";
+import { parseEmergencyDirectives } from "./emergencyParser";
 import { buildChatMessages, extractJsonArray } from "./messages";
 import { parseProviderPriority, PriorityOrderStrategy } from "./priorityStrategy";
 
@@ -150,6 +151,15 @@ export async function interpretOperatorNotes(
     }
   }
 
-  return { ok: false, error: lastError };
+  // Tier 3: Emergency heuristic parser recovers standard directive patterns
+  // if all LLM providers timed out, threw, or exceeded quota.
+  try {
+    const raw = parseEmergencyDirectives(operatorNotes, battery);
+    console.warn(`[llm-interpreter] falling back to emergency heuristic parser after error: ${lastError}`);
+    return { ok: true, raw, servedBy: "emergency-heuristic-parser" };
+  } catch (emergencyErr) {
+    console.error("[llm-interpreter] emergency parser failed:", emergencyErr);
+    return { ok: false, error: lastError };
+  }
 }
 

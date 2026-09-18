@@ -10,10 +10,10 @@
 import solver from "javascript-lp-solver";
 import type { LPModel } from "javascript-lp-solver";
 
-import { EPS, HOURS } from "@/lib/constants";
+import { BATTERY_CYCLING_PENALTY, EPS, HOURS } from "@/lib/constants";
 import type { Battery, DirectiveInterpretation, HourEntry, HourlyPlanEntry } from "@/types/gridwise";
 
-export { EPS, HOURS };
+export { BATTERY_CYCLING_PENALTY, EPS, HOURS };
 
 export interface HourConstraints {
   effectiveSolar: number[];
@@ -94,8 +94,8 @@ export function solveSchedule(
 
     model.variables[grid] = { cost: hourEntry.tariff_bdt_per_kwh, [`balance_${h}`]: 1 };
     model.variables[solarUsed] = { cost: 0, [`balance_${h}`]: 1, [`solarcap_${h}`]: 1 };
-    model.variables[discharge] = { cost: 0, [`balance_${h}`]: 1, [`chargebal_${h}`]: 1, [`dischargecap_${h}`]: 1 };
-    model.variables[charge] = { cost: 0, [`balance_${h}`]: -1, [`chargebal_${h}`]: -1, [`chargecap_${h}`]: 1 };
+    model.variables[discharge] = { cost: BATTERY_CYCLING_PENALTY, [`balance_${h}`]: 1, [`chargebal_${h}`]: 1, [`dischargecap_${h}`]: 1 };
+    model.variables[charge] = { cost: BATTERY_CYCLING_PENALTY, [`balance_${h}`]: -1, [`chargebal_${h}`]: -1, [`chargecap_${h}`]: 1 };
     model.variables[soc] = { cost: 0, [`chargebal_${h}`]: 1, [`soc_${h}`]: 1 };
     if (h > 0) {
       model.variables[`soc_${h - 1}`]![`chargebal_${h}`] = -1;

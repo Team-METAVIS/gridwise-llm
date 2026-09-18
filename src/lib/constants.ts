@@ -32,6 +32,9 @@ export const TOLERANCE = NUMERIC_TOLERANCE;
 export const OPTIMIZER_EPSILON = 1e-6;
 export const EPS = OPTIMIZER_EPSILON;
 
+/** Tiny regularization cost (BDT/kWh) on battery movement to prevent simultaneous charge/discharge and pointless cycling. */
+export const BATTERY_CYCLING_PENALTY = 0.0001;
+
 /** Problem Statement §06.1: Service timeout ceiling in seconds. */
 export const MAX_REQUEST_DURATION_SECONDS = 30;
 
