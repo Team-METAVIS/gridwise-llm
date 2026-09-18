@@ -22,6 +22,7 @@ const nextConfig = {
   // providers.schema.json into the deployed function's filesystem on its
   // own. This forces them in explicitly.
   outputFileTracingIncludes: {
+    "/optimize-energy": ["./node_modules/@free-ai-gateway/core/**/*"],
     "/api/optimize-energy": ["./node_modules/@free-ai-gateway/core/**/*"],
   },
 };

@@ -67,8 +67,13 @@ function getRouter(): CapabilityRouter {
   }
 }
 
-async function callGateway(operatorNotes: string[]): Promise<{ content: string; servedBy: string }> {
-  const messages = buildChatMessages(operatorNotes);
+import type { Battery } from "@/types/gridwise";
+
+async function callGateway(
+  operatorNotes: string[],
+  battery?: Battery
+): Promise<{ content: string; servedBy: string }> {
+  const messages = buildChatMessages(operatorNotes, battery);
   const response = await getRouter().route({
     capabilities: ["text"],
     payload: { messages, temperature: 0 },
@@ -82,40 +87,61 @@ async function callGateway(operatorNotes: string[]): Promise<{ content: string; 
   return { content, servedBy: `${response.servedBy.provider}/${response.servedBy.model}` };
 }
 
-async function callDirect(operatorNotes: string[]): Promise<{ content: string; servedBy: string }> {
-  const messages = buildChatMessages(operatorNotes);
+async function callDirect(
+  operatorNotes: string[],
+  battery?: Battery
+): Promise<{ content: string; servedBy: string }> {
+  const messages = buildChatMessages(operatorNotes, battery);
   return interpretViaDirectFetch(messages, LLM_TIMEOUT_MS);
 }
 
-function parseAndValidate(content: string): RawDirective[] {
+function parseAndValidate(content: string, expectedCount: number): RawDirective[] {
   const jsonText = extractJsonArray(content);
   const parsed = JSON.parse(jsonText);
   const result = rawDirectiveArraySchema.safeParse(parsed);
   if (!result.success) {
     throw new Error(`Model output failed schema validation: ${result.error.message}`);
   }
-  return result.data;
+  const raw = result.data;
+  if (raw.length !== expectedCount) {
+    throw new Error(`Model output length (${raw.length}) does not match note count (${expectedCount}).`);
+  }
+  const seenIndices = new Set<number>();
+  for (const d of raw) {
+    if (seenIndices.has(d.note_index)) {
+      throw new Error(`Duplicate note_index ${d.note_index} in model output.`);
+    }
+    seenIndices.add(d.note_index);
+  }
+  for (let i = 0; i < expectedCount; i++) {
+    if (!seenIndices.has(i)) {
+      throw new Error(`Missing note_index ${i} in model output.`);
+    }
+  }
+  return raw;
 }
 
 /**
  * Interprets the operator notes for one scenario into raw (still untrusted)
  * directive candidates. Tries @free-ai-gateway/core first (unless
- * LLM_BACKEND=direct), retries the parse once against a stripped-down
- * extraction, and falls back to the zero-dependency direct-fetch backend
- * before giving up. Never throws -- callers get a typed ok:false instead,
+ * LLM_BACKEND is set to direct/openai), and falls back to the zero-dependency
+ * direct-fetch backend. Never throws -- callers get a typed ok:false instead,
  * so a total LLM outage degrades to guardrails.ts's safe no_op fallback
  * rather than crashing the request.
  */
-export async function interpretOperatorNotes(operatorNotes: string[]): Promise<InterpretResult> {
+export async function interpretOperatorNotes(
+  operatorNotes: string[],
+  battery?: Battery
+): Promise<InterpretResult> {
   const attempts: Array<() => Promise<{ content: string; servedBy: string }>> = FORCE_DIRECT_BACKEND
-    ? [() => callDirect(operatorNotes)]
-    : [() => callGateway(operatorNotes), () => callDirect(operatorNotes)];
+    ? [() => callDirect(operatorNotes, battery)]
+    : [() => callGateway(operatorNotes, battery), () => callDirect(operatorNotes, battery)];
 
   let lastError = "Unknown LLM interpretation failure.";
   for (const attempt of attempts) {
     try {
       const { content, servedBy } = await attempt();
-      const raw = parseAndValidate(content);
+      const raw = parseAndValidate(content, operatorNotes.length);
       return { ok: true, raw, servedBy };
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
@@ -125,3 +151,4 @@ export async function interpretOperatorNotes(operatorNotes: string[]): Promise<I
 
   return { ok: false, error: lastError };
 }
+

@@ -132,12 +132,17 @@ export function solveSchedule(
   }
 
   const hourlyPlan: HourlyPlanEntry[] = [];
+  let currentSoc = battery.initial_energy_kwh;
+
   for (let h = 0; h < HOURS; h++) {
-    const grid = Math.max(0, Number(result[`grid_${h}`] ?? 0));
-    const solarUsed = Math.max(0, Number(result[`solar_${h}`] ?? 0));
+    const hourEntry = byHour.get(h)!;
+    let grid = Math.max(0, Number(result[`grid_${h}`] ?? 0));
+    if (maxGrid[h] !== null) {
+      grid = Math.min(maxGrid[h]!, grid);
+    }
+    const solarUsed = Math.min(effectiveSolar[h]!, Math.max(0, Number(result[`solar_${h}`] ?? 0)));
     const chargeVar = Math.max(0, Number(result[`charge_${h}`] ?? 0));
     const dischargeVar = Math.max(0, Number(result[`discharge_${h}`] ?? 0));
-    const soc = Number(result[`soc_${h}`] ?? 0);
 
     // Net out simultaneous charge+discharge (see module docstring): the LP
     // treats churn as a free degree of freedom that leaves soc/grid/solar
@@ -147,19 +152,27 @@ export function solveSchedule(
     let battery_kwh = 0;
     if (net > EPS) {
       battery_action = "charge";
-      battery_kwh = net;
+      battery_kwh = Math.min(maxCharge[h]!, net);
     } else if (net < -EPS) {
       battery_action = "discharge";
-      battery_kwh = -net;
+      battery_kwh = Math.min(maxDischarge[h]!, -net);
     }
+
+    const roundedCharge = battery_action === "charge" ? battery_kwh : 0;
+    const roundedDischarge = battery_action === "discharge" ? battery_kwh : 0;
+    currentSoc = currentSoc + roundedCharge - roundedDischarge;
+
+    // Enforce energy balance by setting grid to meet remaining demand
+    const calculatedGrid = Math.max(0, hourEntry.demand_kwh + roundedCharge - solarUsed - roundedDischarge);
+    const finalGrid = maxGrid[h] !== null ? Math.min(maxGrid[h]!, calculatedGrid) : calculatedGrid;
 
     hourlyPlan.push({
       hour: h,
-      grid_kwh: round2(grid),
-      solar_used_kwh: round2(solarUsed),
+      grid_kwh: cleanNum(finalGrid),
+      solar_used_kwh: cleanNum(solarUsed),
       battery_action,
-      battery_kwh: round2(battery_kwh),
-      battery_energy_after_kwh: round2(soc),
+      battery_kwh: cleanNum(battery_kwh),
+      battery_energy_after_kwh: cleanNum(currentSoc),
     });
   }
 
@@ -170,6 +183,10 @@ export function solveSchedule(
   const peakGridKwh = round2(Math.max(...hourlyPlan.map((h) => h.grid_kwh)));
 
   return { hourlyPlan, totalGridKwh, totalCostBdt, peakGridKwh };
+}
+
+function cleanNum(n: number): number {
+  return Math.round(n * 10000) / 10000;
 }
 
 function round2(n: number): number {

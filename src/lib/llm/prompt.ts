@@ -15,11 +15,19 @@ You must classify every note into exactly one of these six directive types:
 
 1. solar_reduction - usable solar drops during specific hours.
    structured_adjustment: {"hours": [int...], "factor": number}
-   "factor" is the USABLE FRACTION THAT REMAINS, not the fraction removed.
-   Example: "output drops to 20%" -> factor 0.2. "an 80% reduction" -> factor 0.2 (100% - 80% = 20% remains).
+   "factor" is the USABLE FRACTION THAT REMAINS (between 0.0 and 1.0), not the fraction removed.
+   - "output drops to 20%" or "usable solar is roughly 25%" -> factor is the stated remaining fraction (0.2 or 0.25).
+   - "an 80% reduction" or "80% drop in solar" -> factor is 0.2 (100% - 80% = 20% remains).
+   - "leaves about half of forecast output" -> factor 0.5.
+   - "one fifth of normal solar remains" -> factor 0.2.
+   - "three quarters lost" -> factor 0.25 (1 - 0.75 = 0.25 remains).
 
-2. minimum_battery_reserve - battery energy must stay at or above a level during specific hours.
+2. minimum_battery_reserve - battery energy must stay at or above a stated level during specific hours.
    structured_adjustment: {"hours": [int...], "minimum_energy_kwh": number}
+   - If stated in absolute kWh (e.g. "at least 120 kWh in reserve"), minimum_energy_kwh is 120.
+   - If stated as a percentage of battery capacity (e.g. "at least 50% of the battery capacity"),
+     multiply that percentage by the battery capacity provided in the user prompt.
+     Example: if battery capacity is 200 kWh, 50% capacity means minimum_energy_kwh is 100.
 
 3. no_charge_window - battery charging is unavailable during specific hours.
    structured_adjustment: {"hours": [int...]}
@@ -30,41 +38,44 @@ You must classify every note into exactly one of these six directive types:
 5. max_grid_window - grid import may not exceed a stated amount during specific hours.
    structured_adjustment: {"hours": [int...], "max_grid_kwh": number}
 
-6. no_op - the note does NOT affect today's 24-hour energy schedule (distractor,
-   unrelated campus news, or something with no defined mechanical effect above).
+6. no_op - the note does NOT affect today's 24-hour energy schedule.
    structured_adjustment: null
+   This includes:
+   - General campus news, menu changes, elections, club events.
+   - Maintenance or events scheduled for tomorrow, next week, next month, or in the past.
+   - Energy meetings or discussions that do not command an immediate physical constraint on today's schedule.
 
-Hour convention: hours are whole numbers 0-23. A time window is START-INCLUSIVE,
-END-EXCLUSIVE. "1 PM to 3 PM" means the hours [13, 14] (NOT 15). Always return
-the hours array as unique integers in ascending order.
+Time window conventions:
+- Hours are whole numbers 0 through 23.
+- Time intervals are START-INCLUSIVE, END-EXCLUSIVE.
+  - "1 PM to 3 PM" (13:00 to 15:00) means hours [13, 14] (NOT 15).
+  - "noon until 2 PM" means hours [12, 13].
+  - "midnight to 2 AM" means hours [0, 1].
+  - "12 AM" = 0, "12 PM" = 12.
+- Cross-midnight intervals: If a window wraps past midnight, return all affected hours in ascending order.
+  - "11 PM to 1 AM" -> [0, 23].
+  - "10 PM to 2 AM" -> [0, 1, 22, 23].
+- Always return the hours array as UNIQUE integers in strictly ASCENDING order.
 
-Notes may paraphrase the same directive in different wording, using clock times,
-percentages, or descriptive language ("roughly a fifth of normal output" means
-factor 0.2). Interpret MEANING, not exact phrasing. Never invent a directive type
-that is not in the list of six above. Never change demand, tariff, or battery
-capacity/rate numbers yourself - only the six mechanisms above may affect the
-schedule, and only through their defined fields.
-
-Respond with ONLY a JSON array, one object per operator note, in the same order
-the notes were given (note_index 0, 1, 2, ...). Each object has exactly these
-fields: note_index (integer), applies (boolean), directive_type (one of the six
-strings above), structured_adjustment (object matching the type above, or null
-only for no_op), explanation (a short, one-sentence reason).
+Respond with ONLY a JSON array, one object per operator note, in the exact same order
+the notes were given (note_index 0, 1, 2, ...). Each object has exactly these fields:
+- "note_index": integer (0, 1, ...)
+- "applies": boolean (true for applicable directives, false ONLY for no_op)
+- "directive_type": string (one of the six exact strings above)
+- "structured_adjustment": object matching the required fields above, or null ONLY for no_op
+- "explanation": string (concise explanation)
 
 For no_op: applies MUST be false and structured_adjustment MUST be null.
-For every other directive_type: applies MUST be true and structured_adjustment
-MUST be a non-null object with exactly the fields listed for that type.
+For every other directive_type: applies MUST be true and structured_adjustment MUST be non-null.
 
 Do not include markdown code fences, comments, or any text outside the JSON array.`;
 
 export interface FewShotExample {
   notes: string[];
+  battery?: { capacity_kwh: number; minimum_energy_kwh?: number };
   response: string;
 }
 
-// A few worked examples spanning: a clear directive, a clear distractor, and a
-// paraphrase (different wording than the Problem Statement's own examples) so
-// the model locks onto meaning rather than memorized phrasing.
 export const FEW_SHOT_EXAMPLES: FewShotExample[] = [
   {
     notes: [
@@ -84,19 +95,20 @@ export const FEW_SHOT_EXAMPLES: FewShotExample[] = [
         applies: false,
         directive_type: "no_op",
         structured_adjustment: null,
-        explanation: "Election scheduling has no effect on the energy schedule.",
+        explanation: "Election scheduling has no effect on today's energy schedule.",
       },
     ]),
   },
   {
-    notes: ["Please hold at least 150 kWh in the battery from 6 PM to 10 PM in case of a grid maintenance cut."],
+    notes: ["Keep at least 50% of the battery capacity stored in the battery from 6 PM until 9 PM for emergency operations."],
+    battery: { capacity_kwh: 200, minimum_energy_kwh: 40 },
     response: JSON.stringify([
       {
         note_index: 0,
         applies: true,
         directive_type: "minimum_battery_reserve",
-        structured_adjustment: { hours: [18, 19, 20, 21], minimum_energy_kwh: 150 },
-        explanation: "Operator wants a 150 kWh floor in reserve from 6 PM through 9 PM inclusive.",
+        structured_adjustment: { hours: [18, 19, 20], minimum_energy_kwh: 100 },
+        explanation: "Half of the 200 kWh battery capacity is 100 kWh, which must remain available from 6 PM to 9 PM.",
       },
     ]),
   },
@@ -124,7 +136,14 @@ export const FEW_SHOT_EXAMPLES: FewShotExample[] = [
   },
 ];
 
-export function buildUserPrompt(operatorNotes: string[]): string {
+export function buildUserPrompt(
+  operatorNotes: string[],
+  battery?: { capacity_kwh: number; minimum_energy_kwh?: number }
+): string {
+  const batteryContext = battery
+    ? `Campus Battery Context:\n- Total Capacity: ${battery.capacity_kwh} kWh\n- Base Minimum Reserve: ${battery.minimum_energy_kwh ?? 0} kWh\n\n`
+    : "";
   const numbered = operatorNotes.map((note, i) => `${i}: ${note}`).join("\n");
-  return `Operator notes for this scenario:\n${numbered}\n\nReturn the JSON array now.`;
+  return `${batteryContext}Operator notes for this scenario:\n${numbered}\n\nReturn the JSON array now.`;
 }
+

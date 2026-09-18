@@ -250,10 +250,13 @@ export async function callGemini(messages: ChatMessage[], timeoutMs: number): Pr
   for (const model of models) {
     try {
       const res = await fetchWithTimeout(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
           body: JSON.stringify(body),
         },
         timeoutMs
@@ -289,9 +292,13 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 
 async function safeText(res: Response): Promise<string> {
   try {
-    return await res.text();
+    const raw = await res.text();
+    // Truncate to 150 chars max and mask any possible key leaks
+    const truncated = raw.slice(0, 150).replace(/[a-zA-Z0-9_-]{20,}/g, "[REDACTED]");
+    return truncated || "<empty body>";
   } catch {
     return "<no body>";
   }
 }
+
 

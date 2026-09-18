@@ -27,15 +27,16 @@ function isDirectiveType(value: string): value is DirectiveType {
   return (DIRECTIVE_TYPES as readonly string[]).includes(value);
 }
 
-/** Normalizes an hours array: unique, ascending, integer, within [0, 23].
- * Returns null (invalid) if nothing usable survives. */
+/** Normalizes an hours array: unique, ascending, integer, strictly within [0, 23].
+ * Returns null if the array is empty or contains ANY non-integer or out-of-range value (0-23). */
 function normalizeHours(raw: unknown): number[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null;
-  const cleaned = Array.from(
-    new Set(
-      raw.filter((h): h is number => typeof h === "number" && Number.isInteger(h) && h >= 0 && h <= 23)
-    )
-  ).sort((a, b) => a - b);
+  for (const h of raw) {
+    if (typeof h !== "number" || !Number.isInteger(h) || h < 0 || h > 23) {
+      return null;
+    }
+  }
+  const cleaned = Array.from(new Set(raw as number[])).sort((a, b) => a - b);
   return cleaned.length > 0 ? cleaned : null;
 }
 

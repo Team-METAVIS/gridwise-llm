@@ -1,4 +1,6 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export { GET } from "@/app/health/route";
+export async function GET() {
+  return Response.json({ status: "ok" });
+}

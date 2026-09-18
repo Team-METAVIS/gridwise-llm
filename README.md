@@ -12,10 +12,10 @@ Energy Data + Operator Notes → LLM Interpreter → Guardrail Validator → LP 
 
 | | |
 |---|---|
-| Health endpoint | `GET /health` → `{"status":"ok"}` |
-| Main endpoint | `POST /optimize-energy` |
+| Health endpoint | `GET /health` (alias: `GET /api/health`) → `{"status":"ok"}` |
+| Main endpoint | `POST /optimize-energy` (alias: `POST /api/optimize-energy`) |
 | Stack | Next.js 15 (App Router, TypeScript), deployed on Vercel |
-| LLM layer | [`@free-ai-gateway/core`](https://github.com/zaber-dev/free-ai-gateway) (20 free-tier providers, env-configurable priority order), with a zero-dependency direct-fetch fallback |
+| LLM layer | [`@free-ai-gateway/core`](https://github.com/zaber-dev/free-ai-gateway) (20 free-tier providers, env-configurable priority order), with a zero-dependency direct-fetch fallback (OpenAI, Groq, Gemini) |
 | Optimizer | Linear program via [`javascript-lp-solver`](https://www.npmjs.com/package/javascript-lp-solver) |
 | Fallback deployment | Docker (`Dockerfile`, Next.js standalone output) |
 
@@ -28,17 +28,17 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` and set at least one provider API key (see [Environment variables](#environment-variables) — a single free key, e.g. `GOOGLE_API_KEY` or `GROQ_API_KEY`, is enough to run the whole pipeline for real).
+Edit `.env` and set at least one provider API key (see [Environment variables](#environment-variables) — a single free key, e.g. `GOOGLE_API_KEY`, `GROQ_API_KEY`, or `OPENAI_API_KEY`, is enough to run the whole pipeline for real).
 
 ```bash
 npm run dev        # http://localhost:3000
 ```
 
 ```bash
-curl http://localhost:3000/api/health
+curl http://localhost:3000/health
 # {"status":"ok"}
 
-curl -X POST http://localhost:3000/api/optimize-energy \
+curl -X POST http://localhost:3000/optimize-energy \
   -H "Content-Type: application/json" \
   --data-binary @- <<'EOF'
 {
@@ -115,18 +115,21 @@ No secret values are committed anywhere in this repo — only `.env.example` wit
 
 ## Testing
 
-`npm test` runs three suites:
+`npm test` runs comprehensive automated test suites:
 
-- `tests/priorityStrategy.test.ts` — the env-driven provider ordering logic.
+- `tests/apiRoutes.test.ts` — validates exact `/health` and `/optimize-energy` endpoints, status codes, input validation, error handling, and backward-compatible `/api/*` aliases.
+- `tests/priorityStrategy.test.ts` — the env-driven provider ordering and priority strategy logic.
 - `tests/guardrails.test.ts` — malformed/out-of-range/duplicate/unsupported LLM output all degrade to safe `no_op` rather than being applied.
-- `tests/publicSamples.test.ts` — runs the optimizer + final replay validator (LLM bypassed, using each sample's own reference `directive_interpretation`) against all 10 cases in `BUP_CSE_FEST_2026_Preli_Public_Sample_Cases.json`, asserting the schedule is valid and its cost matches or beats the organizer's reference within tolerance.
+- `tests/directBackend.test.ts` — validates direct-fetch provider fallbacks, header sanitization (`x-goog-api-key`), and automatic model rotation across OpenAI, Groq, and Gemini.
+- `tests/fuzzScenarios.test.ts` — fuzz-tests the LP optimizer and replay validator with randomized 3-decimal floating-point numbers and multi-constraint combinations, verifying numerical stability.
+- `tests/publicSamples.test.ts` — runs the optimizer + final replay validator against all 10 organizer-provided public sample cases in `BUP_CSE_FEST_2026_Preli_Public_Sample_Cases.json`, asserting schedule validity and cost optimality.
 
 ## Docker fallback
 
 ```bash
 docker build -t gridwise-llm .
 docker run -p 3000:3000 --env-file .env gridwise-llm
-curl http://localhost:3000/api/health
+curl http://localhost:3000/health
 ```
 
 > **TODO before submission:** push the built image to Docker Hub/GHCR and record the exact tag/digest + verified `docker run` command here, per the Participant Guide's Docker fallback requirement. Not yet done as of this commit.

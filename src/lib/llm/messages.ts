@@ -6,15 +6,19 @@ export interface ChatMessage {
 }
 
 /** OpenAI-style message list shared by every LLM backend (gateway + direct-fetch). */
-export function buildChatMessages(operatorNotes: string[]): ChatMessage[] {
+export function buildChatMessages(
+  operatorNotes: string[],
+  battery?: { capacity_kwh: number; minimum_energy_kwh?: number }
+): ChatMessage[] {
   const messages: ChatMessage[] = [{ role: "system", content: SYSTEM_PROMPT }];
   for (const example of FEW_SHOT_EXAMPLES) {
-    messages.push({ role: "user", content: buildUserPrompt(example.notes) });
+    messages.push({ role: "user", content: buildUserPrompt(example.notes, example.battery) });
     messages.push({ role: "assistant", content: example.response });
   }
-  messages.push({ role: "user", content: buildUserPrompt(operatorNotes) });
+  messages.push({ role: "user", content: buildUserPrompt(operatorNotes, battery) });
   return messages;
 }
+
 
 /** Extracts a JSON array substring from a model response that may be wrapped in
  * prose or markdown code fences, despite the prompt asking for raw JSON. */

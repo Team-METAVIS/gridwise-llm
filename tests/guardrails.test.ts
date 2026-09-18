@@ -112,4 +112,18 @@ describe("applyGuardrails", () => {
     );
     expect(result.map((d) => d.note_index)).toEqual([0, 1, 2]);
   });
+
+  it("rejects adjustments with out-of-range or non-integer hours (e.g. 99) and falls back to no_op", () => {
+    const result = applyGuardrails(
+      [
+        raw({
+          directive_type: "solar_reduction",
+          structured_adjustment: { hours: [13, 14, 99], factor: 0.2 },
+        }),
+      ],
+      1,
+      battery
+    );
+    expect(result[0]).toMatchObject({ applies: false, directive_type: "no_op" });
+  });
 });

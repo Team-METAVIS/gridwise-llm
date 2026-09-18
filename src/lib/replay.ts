@@ -10,7 +10,7 @@
 // directly from hourly_plan, since hourly_plan is the judge's source of
 // truth for those totals, not whatever the optimizer tracked internally.
 
-import { buildHourConstraints, EPS, HOURS } from "@/lib/optimizer";
+import { buildHourConstraints, HOURS } from "@/lib/optimizer";
 import type { Battery, DirectiveInterpretation, HourEntry, HourlyPlanEntry } from "@/types/gridwise";
 
 export interface ReplayTotals {
@@ -18,6 +18,8 @@ export interface ReplayTotals {
   totalCostBdt: number;
   peakGridKwh: number;
 }
+
+export const TOLERANCE = 0.01; // Canonical tolerance per Problem Statement §11.5
 
 class ReplayValidationError extends Error {}
 
@@ -53,53 +55,53 @@ export function replayAndValidate(
     })) {
       if (!Number.isFinite(value)) throw new ReplayValidationError(`hour ${h}: ${field} is not finite.`);
     }
-    if (entry.grid_kwh < -EPS) throw new ReplayValidationError(`hour ${h}: grid_kwh is negative.`);
-    if (entry.solar_used_kwh < -EPS) throw new ReplayValidationError(`hour ${h}: solar_used_kwh is negative.`);
-    if (entry.battery_kwh < -EPS) throw new ReplayValidationError(`hour ${h}: battery_kwh is negative.`);
+    if (entry.grid_kwh < -TOLERANCE) throw new ReplayValidationError(`hour ${h}: grid_kwh is negative.`);
+    if (entry.solar_used_kwh < -TOLERANCE) throw new ReplayValidationError(`hour ${h}: solar_used_kwh is negative.`);
+    if (entry.battery_kwh < -TOLERANCE) throw new ReplayValidationError(`hour ${h}: battery_kwh is negative.`);
 
-    if (entry.battery_action === "idle" && Math.abs(entry.battery_kwh) > EPS) {
+    if (entry.battery_action === "idle" && Math.abs(entry.battery_kwh) > TOLERANCE) {
       throw new ReplayValidationError(`hour ${h}: battery_action is idle but battery_kwh is nonzero.`);
     }
 
     const chargeAmount = entry.battery_action === "charge" ? entry.battery_kwh : 0;
     const dischargeAmount = entry.battery_action === "discharge" ? entry.battery_kwh : 0;
 
-    if (chargeAmount > maxCharge[h]! + EPS) {
+    if (chargeAmount > maxCharge[h]! + TOLERANCE) {
       throw new ReplayValidationError(`hour ${h}: charge ${chargeAmount} exceeds the active limit ${maxCharge[h]}.`);
     }
-    if (dischargeAmount > maxDischarge[h]! + EPS) {
+    if (dischargeAmount > maxDischarge[h]! + TOLERANCE) {
       throw new ReplayValidationError(`hour ${h}: discharge ${dischargeAmount} exceeds the active limit ${maxDischarge[h]}.`);
     }
 
-    if (entry.solar_used_kwh > effectiveSolar[h]! + EPS) {
+    if (entry.solar_used_kwh > effectiveSolar[h]! + TOLERANCE) {
       throw new ReplayValidationError(
         `hour ${h}: solar_used_kwh ${entry.solar_used_kwh} exceeds effective solar ${effectiveSolar[h]}.`
       );
     }
 
-    if (maxGrid[h] !== null && entry.grid_kwh > maxGrid[h]! + EPS) {
+    if (maxGrid[h] !== null && entry.grid_kwh > maxGrid[h]! + TOLERANCE) {
       throw new ReplayValidationError(`hour ${h}: grid_kwh ${entry.grid_kwh} exceeds max_grid_window cap ${maxGrid[h]}.`);
     }
 
     // Energy balance: grid + solar_used + discharge = demand + charge
     const balance = entry.grid_kwh + entry.solar_used_kwh + dischargeAmount - hourEntry.demand_kwh - chargeAmount;
-    if (Math.abs(balance) > EPS) {
+    if (Math.abs(balance) > TOLERANCE) {
       throw new ReplayValidationError(`hour ${h}: energy balance does not hold (off by ${balance}).`);
     }
 
     // Battery transition: soc_h = soc_{h-1} + charge - discharge
     soc = soc + chargeAmount - dischargeAmount;
-    if (Math.abs(soc - entry.battery_energy_after_kwh) > EPS) {
+    if (Math.abs(soc - entry.battery_energy_after_kwh) > TOLERANCE) {
       throw new ReplayValidationError(
         `hour ${h}: battery_energy_after_kwh ${entry.battery_energy_after_kwh} does not match replayed state ${soc}.`
       );
     }
-    if (soc < minReserve[h]! - EPS || soc > battery.capacity_kwh + EPS) {
+    if (soc < minReserve[h]! - TOLERANCE || soc > battery.capacity_kwh + TOLERANCE) {
       throw new ReplayValidationError(`hour ${h}: battery state ${soc} is outside [${minReserve[h]}, ${battery.capacity_kwh}].`);
     }
   }
 
-  if (Math.abs(soc - battery.initial_energy_kwh) > EPS) {
+  if (Math.abs(soc - battery.initial_energy_kwh) > TOLERANCE) {
     throw new ReplayValidationError(
       `End-of-day battery neutrality violated: final ${soc} kWh vs initial ${battery.initial_energy_kwh} kWh.`
     );
