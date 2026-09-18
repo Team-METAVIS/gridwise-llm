@@ -65,7 +65,7 @@ graph TD
 | **LLM Resilience** | 4-tier engine: `@free-ai-gateway/core` -> direct fetch (Google Gemini, Groq, OpenAI) with model rotation -> Tier 3 emergency heuristic parser -> safe `no_op` |
 | **Optimization Method** | Regularized simplex linear programming via [`javascript-lp-solver`](https://www.npmjs.com/package/javascript-lp-solver) with battery cycling penalty |
 | **Replay & Verification** | Physical constraint simulator with canonical `0.01` tolerance per Problem Statement §11.5 |
-| **Container Fallback** | Multi-stage standalone Docker container (`Dockerfile`, non-root user `gridwise`, port `3000`) |
+| **Container Fallback** | Multi-stage standalone Docker container (`Dockerfile`, non-root user `gridwise`, port `3000`, published to Docker Hub: [`zaberdev/gridwise-llm:latest`](https://hub.docker.com/r/zaberdev/gridwise-llm)) |
 | **Test Verification** | **99/99 tests passing** across 7 test suites, including 50 randomized stress scenarios |
 
 ---
@@ -430,10 +430,24 @@ npm run typecheck     # TypeScript strict compilation check (tsc --noEmit)
 
 ## Docker Fallback
 
-A multi-stage, secure Docker container is provided as the official fallback path:
+A multi-stage, secure Docker container is officially published to Docker Hub and can be run instantly:
+
+### Option A: Pull Pre-built Image from Docker Hub (Instant)
 
 ```bash
-# Build the Docker image
+# Pull and run directly from Docker Hub
+docker pull zaberdev/gridwise-llm:latest
+
+docker run -d -p 3000:3000 --env-file .env --name gridwise-service zaberdev/gridwise-llm:latest
+
+# Verify health endpoint inside container
+curl http://localhost:3000/health
+```
+
+### Option B: Build Locally from Source
+
+```bash
+# Build the Docker image locally
 docker build -t gridwise-llm .
 
 # Run container with environment configuration
