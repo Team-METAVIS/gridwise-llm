@@ -151,8 +151,12 @@ export default function HomePage() {
   const [lastSubmittedPayload, setLastSubmittedPayload] = useState<ScenarioPayload | null>(null);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
   const [resultsTab, setResultsTab] = useState<"visual" | "json">("visual");
+  const [currentOrigin, setCurrentOrigin] = useState<string>("https://gridwise.zaber.dev");
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.location.origin) {
+      setCurrentOrigin(window.location.origin);
+    }
     fetch("/health")
       .then((res) => res.json())
       .then((data) => setHealthStatus(data.status === "ok" ? "Operational (200 OK)" : "Degraded"))
@@ -303,7 +307,7 @@ export default function HomePage() {
             </div>
             <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 6px" }}>Mandatory judge health probe returning HTTP 200.</p>
             <code style={{ fontSize: 11, color: "#0f172a", backgroundColor: "#f1f5f9", padding: "4px 8px", borderRadius: 4, display: "block" }}>
-              curl https://gridwise.zaber.dev/health
+              curl {currentOrigin}/health
             </code>
           </div>
 
@@ -314,7 +318,7 @@ export default function HomePage() {
             </div>
             <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 6px" }}>Primary optimizer endpoint taking 24h data + operator notes.</p>
             <code style={{ fontSize: 11, color: "#0f172a", backgroundColor: "#f1f5f9", padding: "4px 8px", borderRadius: 4, display: "block" }}>
-              curl -X POST https://gridwise.zaber.dev/optimize-energy -d @scenario.json
+              curl -X POST {currentOrigin}/optimize-energy -d @scenario.json
             </code>
           </div>
         </section>
